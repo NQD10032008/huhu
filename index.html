@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <!-- Khai báo bảng mã UTF-8 để hiển thị đầy đủ tiếng Việt có dấu -->
+  <meta charset="UTF-8" />
+  <!-- Giúp trang web hiển thị vừa vặn trên màn hình điện thoại và máy tính -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nhận dạng chữ từ hình ảnh (OCR)</title>
+  <!-- Liên kết tới file giao diện style.css -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Khung chứa chính của toàn bộ trang web -->
+  <main class="container">
+    <!-- Phần đầu trang: tiêu đề và mô tả ngắn -->
+    <header class="header">
+      <h1>Nhận dạng chữ từ hình ảnh</h1>
+      <p>Tải ảnh, kéo thả nhiều ảnh hoặc chụp trực tiếp bằng camera để trích xuất và phân loại văn bản.</p>
+    </header>
+
+    <!-- Khu vực chọn chế độ tài liệu và ngôn ngữ nâng cao -->
+    <section class="controls-grid">
+      <div class="control-group">
+        <label for="docModeSelect">Loại tài liệu / Xử lý ưu tiên:</label>
+        <select id="docModeSelect">
+          <option value="normal">Mặc định (văn bản thường)</option>
+          <option value="receipt">Hóa đơn (tăng nét chữ & số)</option>
+          <option value="bleedthrough">Chữ xuyên trang (lọc nét mờ mặt sau)</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="customLangInput">Mã ngôn ngữ áp dụng (tự ghép bằng dấu +):</label>
+        <input
+          type="text"
+          id="customLangInput"
+          class="text-input"
+          value="vie"
+          placeholder="Ví dụ: vie, eng, vie+eng, jpn..."
+        />
+      </div>
+    </section>
+
+    <!-- Hộp chọn nhanh đa ngôn ngữ nâng cao -->
+    <section class="lang-box">
+      <div class="lang-header">
+        <span class="lang-title">Ghép nhanh nhiều ngôn ngữ:</span>
+        <span id="detectedLangBadge" class="lang-badge">Gợi ý ngôn ngữ: Chưa có dữ liệu</span>
+      </div>
+
+      <div id="langCheckboxes" class="lang-checkboxes">
+        <label class="checkbox-item"><input type="checkbox" value="vie" checked /> Tiếng Việt (vie)</label>
+        <label class="checkbox-item"><input type="checkbox" value="eng" /> Tiếng Anh (eng)</label>
+        <label class="checkbox-item"><input type="checkbox" value="jpn" /> Tiếng Nhật (jpn)</label>
+        <label class="checkbox-item"><input type="checkbox" value="kor" /> Tiếng Hàn (kor)</label>
+        <label class="checkbox-item"><input type="checkbox" value="chi_sim" /> Trung giản thể (chi_sim)</label>
+        <label class="checkbox-item"><input type="checkbox" value="fra" /> Tiếng Pháp (fra)</label>
+        <label class="checkbox-item"><input type="checkbox" value="deu" /> Tiếng Đức (deu)</label>
+        <label class="checkbox-item"><input type="checkbox" value="spa" /> Tiếng Tây Ban Nha (spa)</label>
+      </div>
+
+      <p class="lang-note">
+        Ghép nhiều ngôn ngữ sẽ tải và xử lý lâu hơn ở lần đầu. Mã ngôn ngữ khác xem theo tài liệu chính thức của Tesseract.js.
+      </p>
+    </section>
+
+    <!-- Khu vực chọn ảnh bằng nút bấm, kéo-thả nhiều ảnh hoặc chụp camera -->
+    <section class="upload-section">
+      <!-- Input file hỗ trợ chọn nhiều ảnh cùng lúc -->
+      <input type="file" id="imageInput" accept="image/*" multiple hidden />
+
+      <div id="dropZone" class="drop-zone">
+        <p class="drop-text">Kéo và thả một hoặc nhiều ảnh vào đây</p>
+        <p class="drop-subtext">hoặc</p>
+        <div class="upload-buttons">
+          <button type="button" id="selectImageBtn" class="btn btn-secondary">
+            Chọn ảnh từ thiết bị
+          </button>
+          <button type="button" id="openCameraBtn" class="btn btn-secondary">
+            Chụp ảnh trực tiếp
+          </button>
+        </div>
+        <p class="file-hint">Chỉ hỗ trợ file ảnh (JPG, PNG, WEBP...)</p>
+      </div>
+
+      <!-- Khung camera trực tiếp -->
+      <div id="cameraBox" class="preview-box hidden">
+        <video id="cameraVideo" autoplay playsinline class="camera-video"></video>
+        <canvas id="cameraCanvas" class="hidden"></canvas>
+        <div class="result-actions">
+          <button type="button" id="capturePhotoBtn" class="btn btn-primary">
+            Chụp bức ảnh này
+          </button>
+          <button type="button" id="closeCameraBtn" class="btn btn-danger">
+            Tắt camera
+          </button>
+        </div>
+      </div>
+
+      <!-- Danh sách các ảnh đã chọn & trạng thái phân loại -->
+      <div id="batchListBox" class="batch-box hidden">
+        <div class="batch-header">
+          <strong id="batchCountText">Danh sách ảnh (0)</strong>
+          <span id="batchSummaryText" class="batch-summary"></span>
+        </div>
+        <ul id="batchList" class="batch-list"></ul>
+      </div>
+
+      <!-- Khung hiển thị ảnh xem trước và chỉnh góc chụp của ảnh đang chọn -->
+      <div id="previewBox" class="preview-box hidden">
+        <img id="previewImage" src="" alt="Ảnh xem trước" />
+        <p id="fileInfo" class="file-info"></p>
+
+        <!-- Bộ điều khiển xoay cho ảnh chụp nhiều góc độ / bị nghiêng -->
+        <div id="angleControls" class="angle-controls">
+          <div class="angle-buttons">
+            <button type="button" id="rotateLeft90Btn" class="btn btn-secondary btn-sm">
+              Xoay trái 90°
+            </button>
+            <button type="button" id="rotateRight90Btn" class="btn btn-secondary btn-sm">
+              Xoay phải 90°
+            </button>
+            <button type="button" id="resetAngleBtn" class="btn btn-secondary btn-sm">
+              Đặt lại góc (0°)
+            </button>
+          </div>
+
+          <div class="fine-angle-row">
+            <label for="fineAngleRange">
+              Tinh chỉnh độ nghiêng: <strong id="angleValueText">0°</strong>
+            </label>
+            <input
+              type="range"
+              id="fineAngleRange"
+              min="-25"
+              max="25"
+              step="1"
+              value="0"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Khu vực nút nhận dạng chính và thanh tiến trình % -->
+    <section class="action-section">
+      <button type="button" id="recognizeBtn" class="btn btn-primary" disabled>
+        Nhận dạng văn bản
+      </button>
+
+      <!-- Thanh tiến trình hiển thị % khi AI đang đọc ảnh -->
+      <div id="progressWrapper" class="progress-wrapper hidden">
+        <div class="progress-bar-bg">
+          <div id="progressBar" class="progress-bar-fill"></div>
+        </div>
+        <p id="progressText" class="progress-text">Đang khởi tạo... 0%</p>
+      </div>
+    </section>
+
+    <!-- Khu vực thông báo lỗi hoặc trạng thái dễ hiểu -->
+    <div id="messageBox" class="message-box hidden" role="alert"></div>
+
+    <!-- Khu vực kết quả văn bản nhận dạng được -->
+    <section class="result-section">
+      <div class="result-top-row">
+        <label for="resultText">Kết quả văn bản (bạn có thể sửa trực tiếp):</label>
+        <span id="activeCategoryBadge" class="category-badge hidden">Phân loại: Chưa có</span>
+      </div>
+      <textarea
+        id="resultText"
+        rows="8"
+        placeholder="Văn bản nhận dạng được sẽ hiện ở đây..."
+      ></textarea>
+
+      <!-- Các nút thao tác với kết quả -->
+      <div class="result-actions">
+        <button type="button" id="copyBtn" class="btn btn-secondary">
+          Sao chép
+        </button>
+        <button type="button" id="downloadBtn" class="btn btn-secondary">
+          Tải về .txt
+        </button>
+        <button type="button" id="clearBtn" class="btn btn-danger">
+          Xóa làm lại
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Nạp thư viện Tesseract.js v5 qua CDN (nếu cần đổi bản hoặc mã ngôn ngữ, hãy kiểm tra tài liệu chính thức của Tesseract.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Nạp file script.js của chúng ta -->
+  <script src="script.js"></script>
+</body>
+</html>
